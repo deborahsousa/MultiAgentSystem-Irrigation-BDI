@@ -12,6 +12,10 @@ species Field {
 	
 }
 
+species LandOwner{
+	
+}
+
 global {
 	//geometry shape <- shape_file("../includes/Bacia_Formoso.shp") as geometry; //delimitating simulation area
 	init{
