@@ -115,15 +115,15 @@ species Farmer control: simple_bdi {
 	}
 	
 	species CP_Farmer parent: Farmer{
-		
+		compliance_level <- 1.0;
 	}
 	
 	species CI_Farmer parent: Farmer{
-		
+		compliance_level <- 0.85;
 	}
 	
 	species NC_Farmer parent: Farmer{
-
+		compliance_level <- 0.6;
 	}
 	
 }	
