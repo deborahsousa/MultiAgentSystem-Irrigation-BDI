@@ -8,13 +8,7 @@
 model Regulator
 
 species RegulatorBDI control: simple_bdi{
-	float cash;
-	int number_of_fields;
-	int initial_sow_day <- 15;
-	float price_tolerance;
-	int max_simultaneous_crops;
-	list private_data;
-	float my_area;
+
 	float water_level;
 		
 	float threshold_law <- 1.0;

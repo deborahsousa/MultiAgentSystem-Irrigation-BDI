@@ -1,0 +1,29 @@
+/**
+* Name: NewExperiment
+* Creates a new experiment with a graphical user interface 
+* Author: desou
+* Tags: 
+*/
+
+/*experiment Display_test model: '../BDI_Models/FRB_Model.gaml'  type:gui {
+	
+	output {
+		display "my_display" background: #red	
+	}
+} */
+
+experiment display_area model: '../BDI_Models/FRB_Model.gaml' type: gui {
+    output {
+        display my_display {
+            graphics "layer1" {
+                draw square(20) at: {10,10} color: #gold;
+            }
+            graphics "layer2" {
+                draw square(20) at: {15,15} color: #darkorange;
+            }
+            graphics "layer3" {
+                draw square(20) at: {20,20} color: #cornflowerblue;
+            }
+        }
+    }
+}

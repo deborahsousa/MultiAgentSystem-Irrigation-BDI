@@ -12,14 +12,12 @@ species FarmerBDI control: simple_bdi{
 	int number_of_fields;
 	int initial_sow_day <- 15;
 	float price_tolerance;
-	int max_simultaneous_crops;
-	list private_data;
-	float my_area;
+	float area;
 	float water_level;
 		
-	float threshold_law <- 1.0;
+	/*float threshold_law <- 1.0;
 	float threshold_obligation <- 1.0;
-	float threshold_norm <- 0.5;	
+	float threshold_norm <- 0.5;*/	
 
 	predicate green_level <- new_predicate("g_lvl");
 	predicate yellow_level <- new_predicate("y_lvl");
