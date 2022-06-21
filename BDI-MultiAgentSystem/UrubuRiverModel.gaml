@@ -46,6 +46,8 @@ global {
 		// loading parameters for scenarios simulation
 		do load_parameters;
 		
+		create Regulator;
+		
 		//creating the pump agent
 		create Pump from: shapefile_pumps;
 		list<Pump> pumps;
@@ -212,17 +214,15 @@ species Farmer control: simple_bdi {
 
 	
 	reflex assign_alpha_limits when: (cycle = 0){ // assigning upper and lower limits of alpha for each farmer profile
-		loop farmers over:Farmer {
-			if(farmers.profile = "CP"){
-				farmers.lower_alpha <- 0.89;
-				farmers.upper_alpha <- 0.95;
-			}else if(farmers.profile = "CI"){
-				farmers.lower_alpha <- 0.92;
-				farmers.upper_alpha <- 1.00;
-			}else if(farmers.profile = "NC") {
-				farmers.lower_alpha <- 1.00;
-				farmers.upper_alpha <- 1.00;
-			}
+		if(profile = "CP"){
+				lower_alpha <- 0.89;
+				upper_alpha <- 0.95;
+		}else if(profile = "CI"){
+				lower_alpha <- 0.92;
+				upper_alpha <- 1.00;
+		}else if(profile = "NC") {
+				lower_alpha <- 1.00;
+				upper_alpha <- 1.00;
 		}
 	}	
 	
@@ -237,23 +237,24 @@ species Farmer control: simple_bdi {
 				my_alpha <- 1.0;
 			}else{
 				do add_belief(less_than_average);
-				loop farmers over:Farmer {
-					if(farmers.profile = 'CP') {
-						farmers.alpha <- rnd(0.89,0.95);
-						my_alpha <- farmers.alpha;
+				
+					if(profile = 'CP') {
+						alpha <- rnd(0.89,0.95);
+						my_alpha <- alpha;
 						my_alphaCP <- my_alpha;
-					}else if(farmers.profile = 'CI') {
-						farmers.alpha <- rnd(0.92,1.00);
-						my_alpha <- farmers.alpha;
+					}else if(profile = 'CI') {
+						alpha <- rnd(0.92,1.00);
+						my_alpha <- alpha;
 						my_alphaCI <- my_alpha;
-					}else if(farmers.profile = 'NC') {
-						farmers.alpha <- 1.00;
-						my_alpha <- farmers.alpha;
+					}else if(profile = 'NC') {
+						alpha <- 1.00;
+						my_alpha <- alpha;
 						my_alphaNC <- my_alpha;
 					}
-				}
+				
 			}
-		return my_alpha;		
+		return my_alpha;
+		
 	}
 	
 	action choose_irrigation_area {
@@ -265,30 +266,34 @@ species Farmer control: simple_bdi {
 	rule belief: restriction_rule new_desire: suspend_water_withdrawal;
 	
 	reflex assign_rules_reactions {
-		loop farmers over:Farmer {
-			if(farmers.profile = "CP"){
-				if((current_date >= date("2020-08-01")) or (current_level <= red_level)){
+		bool aux_date_08 <- (current_date >= date("2020-08-01"));
+		bool aux_date_07 <- (current_date >= date("2020-07-01"));
+		bool aux_level_red <- (current_level <= red_level);
+		bool aux_level_yellow <- (current_level <= yellow_level);
+		
+		
+			if(profile = "CP"){
+				if((aux_date_08) or (aux_level_red)){
 					do add_belief(restriction_rule);
-					farmers.consumed_volume <- 0.0*farmers.consumed_volume;
-				}else if((current_date >= date("2020-07-01")) or (current_level <= yellow_level)){
+					consumed_volume <- 0.0*consumed_volume;
+				}else if((aux_date_07) or (aux_level_yellow)){
 					do add_belief(attention_rule);
-					farmers.consumed_volume <- 0.75*farmers.consumed_volume;
-					farmers.last_cons_vol <- farmers.consumed_volume;
+					consumed_volume <- 0.75*consumed_volume;
+					last_cons_vol <- consumed_volume;
 				}
-			}else if(farmers.profile = "CI"){
-				if((current_date >= date("2020-08-01")) and (current_level <= red_level)){
+			}else if(profile = "CI"){
+				if((aux_date_08) and (aux_level_red)){
 					do add_belief(restriction_rule);
-					farmers.consumed_volume <- 0.0*farmers.consumed_volume;
-				}else if((current_date >= date("2020-07-01")) and (current_level <= yellow_level)) {
+					consumed_volume <- 0.0*consumed_volume;
+				}else if((aux_date_07) and (aux_level_yellow)) {
 					do add_belief(attention_rule);
-					farmers.consumed_volume <- 0.75*farmers.consumed_volume;
-					farmers.last_cons_vol <- farmers.consumed_volume;
+					consumed_volume <- 0.75*consumed_volume;
+					last_cons_vol <- consumed_volume;
 				}
-			}else if(farmers.profile = "NC"){
-				farmers.last_cons_vol <- farmers.consumed_volume;
+			}else if(profile = "NC"){
+				last_cons_vol <- consumed_volume;
 			}
-		}
-	}
+			}
 	
 	//Update consumed volume daily
 	action new_consumed_volume {
@@ -309,8 +314,8 @@ species Farmer control: simple_bdi {
 		return production*sell_price; //[kg*R$/kg]
 	}
 //	action update_color {
-//		if (current_date >= date("2020-08-01")) or (current_level <= red_level) and (consumed_volume>0){
-//			Pump.color <-#red;
+//		if (aux_date_08) or (current_level <= red_level) and (consumed_volume>0){
+//			owned_pumps.color <-#red;
 //		}
 //	}
 		
