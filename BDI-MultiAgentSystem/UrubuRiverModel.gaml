@@ -293,7 +293,7 @@ species Farmer control: simple_bdi {
 			}else if(profile = "NC"){
 				last_cons_vol <- consumed_volume;
 			}
-			}
+		}
 	
 	//Update consumed volume daily
 	action new_consumed_volume {
