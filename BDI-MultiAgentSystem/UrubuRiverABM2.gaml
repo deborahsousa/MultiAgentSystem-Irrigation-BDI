@@ -11,40 +11,62 @@ global {
 	file shapefile_pumps <- file("../includes/urubu_pumps.shp"); //irrigation pumps from GAN
 	matrix farmers_data <- file("../includes/urubu_farmers.csv"); //Farmer agents information
 	matrix pumps_data <- file("../includes/urubu_pumps_info.csv"); //Pumps information
-	matrix prob_CI <- file("../includes/CI-prob.csv");
-	matrix prob_NC <- file("../includes/NC-prob.csv");
-	matrix prob_CP <- file("../includes/CP-prob.csv");
-	matrix limits_withdrawal <- file("../includes/limits-withdrawal.csv");
+	matrix<float> prob_CI <- file("../includes/CI-prob.csv");
+	matrix<float> prob_NC <- file("../includes/NC-prob.csv");
+	matrix<float> prob_CP <- file("../includes/CP-prob.csv");
+	matrix<float> limits_withdrawal <- file("../includes/limits-withdrawal.csv");
 	file shapefile_hidro <- file("../includes/streamwork.shp"); //irrigation channels from SEMARH	
 	file shapefile_channels <- file("../includes/irrigation_channels.shp"); //irrigation channels from SEMARH
 	file shapefile_land <- file("../includes/area_urubu.shp"); // agricultural properties in the Urubu river basin
 	geometry shape <- envelope(shapefile_land);
 	
-	//counters and time steps
+	//counters and time steps (dry season)
 	int day_count update: update_day_count();
 	float step <- 1 #day;
-	int nb_days <- 126;
-	int initial_day <- 1; //day count
-	int twoweeks_count <- 1 update: 1 + floor(day_count/15);
+	int nb_days <- 123;
+	int initial_day <- 0; //day count
+	int twoweeks_count update: update_two_weeks_count();
 	string crop_season <- "soybean" among: ["soybean","rice"];
-	int simulation_count <- 1 update: 1 + floor(cycle/365);
-	int day_in_twoweeks <- 1 update: update_day_in_twoweeks() ;
+	int simulation_count update: floor(cycle/(nb_days-1));
+	int day_in_twoweeks update: update_day_in_twoweeks() ;
 	
 	action update_day_count type: int {
-		if mod(cycle,nb_days) != 0 {
+		if mod(cycle,(nb_days-1)) != 0 {
 			return day_count + 1;
 		} else {
 			return 1;
 		}
 	}	
 	
+	action update_two_weeks_count type: int {
+		if day_count < 120{
+			return floor(day_count/15);
+		}else{
+			return 7; 
+		}
+	}
+	
 	action update_day_in_twoweeks type: int {
-		if mod(day_count,15) != 0 {
+		if mod(day_count,15) != 0{
 			return day_in_twoweeks + 1;
-		} else {
+		} else if mod(day_count,16) = 0 {
 			return 1;
 		}
 	}
+	
+	//global variables
+	//list<Pump> f_owned_pumps update: Farmer collect (each.owned_pumps);
+	//float f_daily_withdrawal update: collect sum(collect(Farmer collect (each.owned_pumps) collect (each.daily_withdrawal));//TODO
+	float f1_daily_withdrawal update: sum(Farmer[0].owned_pumps collect each.daily_withdrawal);//TODO
+	float f11_daily_withdrawal update: sum(Farmer[10].owned_pumps collect each.daily_withdrawal);//TODO
+	float f16_daily_withdrawal update: sum(Farmer[15].owned_pumps collect each.daily_withdrawal);//TODO
+	//list my_pumps update:  (Farmer collect each.owned_pumps);//TODO
+	list<float> f_daily_withdrawal update: Farmer collect sum (each.owned_pumps collect each.daily_withdrawal); //TODO
+	list<float> all_pumps_daily_withdrawal update: Pump collect (each.daily_withdrawal);	
+	
+	list<float> withdrawal_pumps_NC update: (Pump where (each.behavior_g = "NC")) collect (each.daily_withdrawal);
+	list<float> withdrawal_pumps_CP update: (Pump where (each.behavior_g = "CP")) collect (each.daily_withdrawal);
+	list<float> withdrawal_pumps_CI update: (Pump where (each.behavior_g = "CI")) collect (each.daily_withdrawal);
 	
 	//economy
 	/*float soybean_yield <- 3.5; // [ton/ha] //Soybean seed productivity of Tocantins state. Source: CONAB (avg 2017-2021).
@@ -79,8 +101,7 @@ global {
 		create Channel from: shapefile_channels;
 		create Pump from: shapefile_pumps;
 		create Hidro from: shapefile_hidro;
-		//		create Farmer from:shapefile_pumps with:[agent_number::(string(read("agent_numb")))]{
-
+		
 		list<int> farmer_id_list <- Pump collect each.agent_numb;
 		list<int> farmer_id_list <- remove_duplicates(Pump collect each.agent_numb);
 		list<int> pump_id_list <- Pump collect each.pump_numbe;
@@ -145,7 +166,28 @@ global {
 				}
 			}
 		}
-	}*/	
+	}*/		
+		reflex save_daily_data {		
+			//save[f_daily_withdrawal] to: "../results/daily_withdrawal_f.csv"  type:csv rewrite:false;
+			save[all_pumps_daily_withdrawal] to: "../results/daily_withdrawal_pumps_all-100-2.csv"  type:csv rewrite:false;
+			//save[withdrawal_pumps_NC] to: "../results/daily_withdrawal_pumpsNC-1000.csv"  type:csv rewrite:false;
+			//save[withdrawal_pumps_CP] to: "../results/daily_withdrawal_pumpsCP-1000.csv" type:csv rewrite:false;
+			//save[withdrawal_pumps_CI] to: "../results/daily_withdrawal_pumpsCI-1000.csv" type:csv rewrite:false;*/
+			
+			//save [Farmer collect (each.f_daily_withdrawal)] to: "../results/daily_withdrawal_farmer_test2.csv" type:csv rewrite:false;
+			
+			//save[sum((Farmer where (each.profile = "CP")) collect (each.f_daily_withdrawal))] to: "../results/daily_withdrawal_CP.csv" type: "csv" rewrite:false;		
+			
+			//save[sum((Farmer where (each.profile = "NC")) collect (each.f_daily_withdrawal))] to: "../results/daily_withdrawal_NC.csv" type: "csv" rewrite:false;				
+			
+			//save[farmers_CI.f_daily_withdrawal))] to: "../results/daily_withdrawal_CI.csv" type: "csv" rewrite:false;
+			
+			//save[Pump collect (each.daily_withdrawal)] to: "../results/daily_withdrawal_pumps2.csv" type: "csv" rewrite:false;	
+		}
+		
+		reflex end_simulation when:cycle = 100*nb_days {
+			do pause;
+		}
 }
 
 // espécie auxiliar
@@ -189,15 +231,17 @@ species Pump {
 		draw circle(size) color: color border: #black;
 	}
 	
-	reflex update_withdrawal when: (twoweeks_count < 9) {
-		loop j from:0 to:7 {
-			list p_list <- prob_matrix column_at j;
-			map<int,float> prob_map <- create_map([0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17],[p_list[0],p_list[1],p_list[2],p_list[3],p_list[4],p_list[5],p_list[6],p_list[7],p_list[8],p_list[9],p_list[10],p_list[11],p_list[12],p_list[13],p_list[14],p_list[15],p_list[16],p_list[17]]);
-			int interval_index <- rnd_choice(prob_map);
-			float a <- limits_withdrawal[0,interval_index];
-			float b <- limits_withdrawal[1,interval_index];
-			daily_withdrawal <- rnd(a,b);
-		}
+	reflex update_withdrawal {
+		//loop j from:twoweeks_count to:7 {
+		list<float> p_list <- prob_matrix column_at (twoweeks_count);
+		list p_list <- p_list collect (each*0.1);
+		//map<int,float> prob_map <- create_map([0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21],[p_list[0],p_list[1],p_list[2],p_list[3],p_list[4],p_list[5],p_list[6],p_list[7],p_list[8],p_list[9],p_list[10],p_list[11],p_list[12],p_list[13],p_list[14],p_list[15],p_list[16],p_list[17],p_list[18],p_list[19],p_list[20],p_list[21]]);
+		//int interval_index <- rnd_choice(prob_map);
+		//int interval_index <- rnd_choice(p_list[0],p_list[1],p_list[2],p_list[3],p_list[4],p_list[5],p_list[6],p_list[7],p_list[8],p_list[9],p_list[10],p_list[11],p_list[12],p_list[13],p_list[14],p_list[15],p_list[16],p_list[17],p_list[18],p_list[19],p_list[20],p_list[21]);
+		int interval_index <- rnd_choice(p_list);
+		float a <- limits_withdrawal[0,interval_index];
+		float b <- limits_withdrawal[1,interval_index];
+		daily_withdrawal <- rnd(a,b);  
 	}
 }
 
@@ -253,9 +297,13 @@ species Farmer control: simple_bdi {
 	float upper_alpha; // upper limit of alpha
 	float last_cons_vol <- daily_vol_per_area * exp_irrigation_area; // last consumed volume corresponding to the final irrigation area to be sold as crop production*/
 	rgb color <- #grey;
-
+	
 	aspect default {
 		draw circle(150) color: color border: #black;
+	}
+
+	action update_f_withdrawal {
+		return sum(collect(owned_pumps,each.daily_withdrawal));
 	}
 
 	//beliefs
@@ -269,10 +317,6 @@ species Farmer control: simple_bdi {
 	predicate obey_attention_rule <- new_predicate("I will reduce my water consumption");
 	predicate reduce_consumed_volume <- new_predicate('reduce_consumed_volume');
 	predicate suspend_water_withdrawal <- new_predicate('suspend_water_withdrawal');
-
-	reflex update_f_withdrawal {
-		f_daily_withdrawal <- sum(collect(owned_pumps,each.daily_withdrawal));
-	}
 	
 	/*reflex assign_alpha_limits when: (cycle = 0) { // assigning upper and lower limits of alpha for each farmer profile
 		if (profile = "CP") {
@@ -427,27 +471,43 @@ experiment teste_gui type: gui {
 			}
 		}*/
 
-		display Irrigation_per_farmer {
+		display Irrigation_per_farmer refresh: every(1 #cycle) {
 			chart "Water consumption (m3) per farmer" type: series {
 				data "farmer" value: Farmer collect (each.f_daily_withdrawal) style: line color: #magenta;
 			}
 		}
 		
-		display Irrigation_per_pump {
+		display Irrigation_per_pump refresh: every(1 #cycle) {
 			chart "Water consumption (m3) per farmer" type: series {
 				data "pump" value: Pump collect (each.daily_withdrawal) style: line color: #magenta;
 			}
 		}
 
-		/*display Irrigation_per_profile {
-			chart "Water consumption (m3) per profile" type: series {
+		display Withdrawal_category refresh: every(1 #cycle) {
+			chart "Daily withdrawal (m³)" type: series {
 				data "CP" value: sum((Farmer where (each.profile = "CP")) collect (each.f_daily_withdrawal)) style: line color: #magenta;
 				data "CI" value: sum((Farmer where (each.profile = "CI")) collect (each.f_daily_withdrawal)) style: line color: #cyan;
 				data "NC" value: sum((Farmer where (each.profile = "NC")) collect (each.f_daily_withdrawal)) style: line color: #yellow;
 			}
 		}
+
+		display Irrigation_per_pump_profile refresh: every(1 #cycle) {
+			chart "Water consumption (m³) per profile" type: series {
+				data "CP" value: sum((Pump where (each.behavior_g = "CP")) collect (each.daily_withdrawal)) style: line color: #magenta;
+				data "CI" value: sum((Pump where (each.behavior_g = "CI")) collect (each.daily_withdrawal)) style: line color: #cyan;
+				data "NC" value: sum((Pump where (each.behavior_g = "NC")) collect (each.daily_withdrawal)) style: line color: #yellow;
+			}
+		}
 		
-		display Irrigatior_demand_group {
+		display Irrigation_per_onepump_per_profile refresh: every(1 #cycle) {
+			chart "Water consumption (m³) per pump per profile" type: scatter {
+				data "CP" value: sum((Pump where (each.behavior_g = "CP")) collect (each.daily_withdrawal))/6 color: #magenta;
+				data "CI" value: sum((Pump where (each.behavior_g = "CI")) collect (each.daily_withdrawal))/10 color: #cyan;
+				data "NC" value: sum((Pump where (each.behavior_g = "NC")) collect (each.daily_withdrawal))/21 color: #yellow;
+			}
+		}
+		
+		/*display Irrigatior_demand_group {
 			chart "Water consumption (m3) per demand group" type: series {
 				data "D1" value: sum((Farmer where (each.demand_group = "D1")) collect (each.f_daily_withdrawal)) style: line color: #magenta;
 				data "D2" value: sum((Farmer where (each.demand_group = "D2")) collect (each.f_daily_withdrawal)) style: line color: #cyan;
@@ -463,26 +523,9 @@ experiment teste_gui type: gui {
 			}
 		}*/
 	}
-	
-	reflex daily_withdrawal_per_pump{	//saves daily_data in a csv file	
-		save[	
-			sum((Farmer where (each.profile = "CP")) collect (each.f_daily_withdrawal))
-			] to: "../results/daily_withdrawal_CP.csv" type: "csv" rewrite:false;
-				
-		save[	
-			sum((Farmer where (each.profile = "NC")) collect (each.f_daily_withdrawal))
-			] to: "../results/daily_withdrawal_NC.csv" type: "csv" rewrite:false;		
-					
-		save[	
-			sum((Farmer where (each.profile = "CI")) collect (each.f_daily_withdrawal))
-			] to: "../results/daily_withdrawal_CI.csv" type: "csv" rewrite:false;
-		
-		save[	
-			Pump collect (each.daily_withdrawal)
-			] to: "../results/daily_withdrawal_pumps.csv" type: "csv" rewrite:false;
-	}
 }
 
-experiment teste_batch type: batch 	keep_seed: false until: cycle = 500*nb_days {
+experiment teste_batch type: batch 	keep_seed: false until: cycle = 100*nb_days {
 	
 }
+	
