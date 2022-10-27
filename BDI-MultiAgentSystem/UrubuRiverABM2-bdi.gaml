@@ -11,30 +11,48 @@ global {
 	file shapefile_pumps <- file("../includes/urubu_pumps.shp"); //irrigation pumps from GAN
 	matrix farmers_data <- file("../includes/urubu_farmers.csv"); //Farmer agents information
 	matrix pumps_data <- file("../includes/urubu_pumps_info.csv"); //Pumps information
-	list<string> daily_date <- file("../includes/daily.csv");
-	list<int> daily_tw <- file("../includes/daily_tw.csv");
+	list<string> daily_date <- file("../includes/daily_date.txt");
 	matrix<float> prob_CI <- file("../includes/CI-prob.csv");
 	matrix<float> prob_NC <- file("../includes/NC-prob.csv");
 	matrix<float> prob_CP <- file("../includes/CP-prob.csv");
 	matrix<float> limits_withdrawal <- file("../includes/limits-withdrawal.csv");
-	/*file shapefile_hidro <- file("../includes/streamwork.shp"); //irrigation channels from SEMARH	
+	file shapefile_hidro <- file("../includes/streamwork.shp"); //irrigation channels from SEMARH	
 	file shapefile_channels <- file("../includes/irrigation_channels.shp"); //irrigation channels from SEMARH
 	file shapefile_land <- file("../includes/area_urubu.shp"); // agricultural properties in the Urubu river basin
-	geometry shape <- envelope(shapefile_land);*/
+	geometry shape <- envelope(shapefile_land);
 	
+	//Biennium Plan rules
+	float yellow_level <- 3.98; // meters
+	float red_level <- 2.20; // meters
+	date attention_date <- date("2020-07-01");
+	date restriction_date <- date("2020-08-01");
+	/*********FICTIONAL**********/
+	float initial_level <- 4.5; //fictional
+	float current_level <- initial_level update:current_level - 0.05; // fictional //level variation at the reference gauging station [m] //might be given as an input of a hydrological model output
+	//TODO adicionar a média dos níveis reais da estação de referência do Urubu para estação seca
+	bool aux_level_red update:(current_level <= red_level);
+	bool aux_level_yellow update:(current_level <= yellow_level);
+	bool aux_date_08 update:(my_day >= restriction_date);
+	bool aux_date_07 update:(my_day >= attention_date);
+	date my_day <- starting_date update: update_my_date();
+		
 	//counters and time steps (dry season)
 	date starting_date <- date("2020-04-30");
 	float step <- 1 #day;
 	int nb_days <- 123; //day count from the first to the last day of one dry season simulation
 	string crop_season <- "soybean" among: ["soybean","rice"];
-	//string day_of_the_year update: daily_date[cycle-1] init:'30/abr'; 
-	int twoweeks_count update:update_twoweeks_count(cycle);
-	
-	//list<float> f_daily_withdrawal update: Farmer collect sum (each.owned_pumps collect each.daily_withdrawal); //TODO
-	list<float> all_pumps_daily_withdrawal update: Pump collect (each.daily_withdrawal);
-	
+	int twoweeks_count update:update_twoweeks_count(cycle);	
 	int day_in_twoweeks  update: update_day_in_twoweeks();
 
+	action update_my_date type: date {
+		if cycle>1 {
+			date my_new_date <- daily_date[cycle-1]; 
+			return my_new_date;
+		} else {
+			return starting_date;
+		} 
+	}
+	
 	action update_day_in_twoweeks type: int {
 		if mod(cycle-1,15) != 0 or (cycle-1) >= 120 {
 			return day_in_twoweeks + 1;
@@ -52,22 +70,29 @@ global {
 			return 7;
 		}
 	}
-		
-	//COLLECTIVE VARIABLES IN OUTPUT	
-	//list<float> withdrawal_pumps_NC update: (Pump where (each.behavior_g = "NC")) collect (each.daily_withdrawal);
-	
-	//Scenarios
+			
+	//SCENARIOS
 	//string scenario <- "S0"; //baseline
-	//string scenario <- "S1" ;//all CP
+	string scenario <- "S1" ;//all CP
 	//string scenario <- "S2"; //all NC	
-	string scenario <- "S3"; //all CI	
-		
-	//initial state
+	//string scenario <- "S3"; //all CI	
+	
+	//Demand group effect
+	float n_CP; //fraction of CP farmers in a demand_group
+	float n_CI; //fraction of CI farmers in a demand_group
+	float n_NC; //fraction of NC farmers in a demand_group
+	
+	//COLLECTIVE VARIABLES IN OUTPUT	
+	//list<float> f_daily_withdrawal update: Farmer collect sum (each.owned_pumps collect each.daily_withdrawal); //TODO
+	list<float> all_pumps_daily_withdrawal update: Pump collect (each.daily_withdrawal);	
+
+/***********
+initial state****************/
 	init {
 		//loading parameters for scenarios simulation
-		/*create Land from: shapefile_land;
+		create Land from: shapefile_land;
 		create Channel from: shapefile_channels;
-		create Hidro from: shapefile_hidro;*/
+		create Hidro from: shapefile_hidro;
 		
 		//creating the Pump agent
 		create Pump from: shapefile_pumps;
@@ -82,6 +107,9 @@ global {
 			farmer.farmer_id <- farmer_id_list[i];
 			i <- i + 1;
 		}
+		
+		//creating the Regulator agent
+		create Regulator;
 
 		//relate farmers to profiles, demand group and area
 		loop j from: 0 to: length(farmer_id_list) - 1 step: 1 {
@@ -95,7 +123,7 @@ global {
 			}
 		}	
 		
-		//SCENARIOS	
+		//Scenarios settings
 		switch scenario {
 			match 'S0'{
 				loop j from: 0 to: length(farmer_id_list) - 1 step: 1 {
@@ -136,8 +164,23 @@ global {
 				loop pump over:Pump {
 					pump.behavior_g <- 'CI';
 				} 
+			}
+			
+			match 'S4'{
+				loop j from: 0 to: length(farmer_id_list) - 1 step: 1 {
+					loop i from: 0 to: length(farmer_id_list) - 1 step: 1{
+						int my_farmer_data_id <- int(farmers_data[0,i]);
+						if Farmer[j].farmer_id = my_farmer_data_id{
+							Farmer[j].profile <- farmers_data[2,i];
+						}
+					}
+				}
+				
+				/*loop farmer over:Farmer{
+					farmer.neighb_effect <- 'None';//assign_neighb_effect();	
+				}*/
 			}			
-		}	
+		}			
 		
 		//relate pumps' owners profiles to their probabilities matrixes
 		loop pump over:Pump {
@@ -160,11 +203,34 @@ global {
 				}
 			}
 		}
+		
+		list<Farmer> mygroup1 <- Farmer where (each.demand_group = 'D1');
+		list<Farmer> mygroup2 <- Farmer where (each.demand_group = 'D2');
+		list<Farmer> mygroup3 <- Farmer where (each.demand_group = 'D3');
+		
+		//assign farmers list of peers according to demand group
+		loop farmer over:Farmer {
+			if farmer.demand_group = "D1" {
+				farmer.my_group <- mygroup1;
+			}else if farmer.demand_group = "D2" {
+				farmer.my_group <- mygroup2;
+			}else if farmer.demand_group = "D3" {
+				farmer.my_group <- mygroup3;
+			}
+		}
+		
+		//neighb_effect for each demand group
+		loop farmer over:Farmer{
+			//if length(farmer.my_group) = 0
+			farmer.n_CP <- length(farmer.my_group where (each.profile = 'CP'))/length(farmer.my_group);
+			farmer.n_NC <- length(farmer.my_group where (each.profile = 'NC'))/length(farmer.my_group);
+		}
+							
 	}/******END INIT*****/		
 			
 	reflex save_daily_data when: cycle > 1 {		
-		string day_of_the_year <- daily_date[cycle-1];
-		save [cycle,int(self),day_of_the_year,all_pumps_daily_withdrawal] to: "../results/cenarios/daily_withdrawal"+scenario+".csv"  type:csv rewrite:false header:false;				 
+		//string day_of_the_year <- daily_date[cycle-1];
+		//save [cycle,int(self),day_of_the_year,all_pumps_daily_withdrawal] to: "../results/cenarios/daily_withdrawal"+scenario+".csv"  type:csv rewrite:false header:false;				 
 		//write 'ciclo '+cycle+' '+day_of_the_year+' '+' '+all_pumps_daily_withdrawal;
 		//list<float> all_pumps_daily_withdrawal <- Pump collect (each.daily_withdrawal);	
 		//save [cycle,int(self),day_of_the_year,all_pumps_daily_withdrawal]to: "../results/exemplo1.csv"  type:csv rewrite:false header:false;				
@@ -172,9 +238,9 @@ global {
 		//save [cycle,int(self),day_of_the_year,all_pumps_daily_withdrawal]to: "../results/daily_withdrawal-pumps-1000-keepseed"+scenario+"-init0.csv"  type:csv rewrite:false;
 	}
 	
-	/*reflex end_simulation when:cycle=nb_days+1{
+	reflex end_simulation when:cycle=nb_days+2{
 		do pause;
-	}*/
+	}
 }/******END GLOBAL*****/
 
 species Pump {
@@ -194,55 +260,116 @@ species Pump {
 	float daily_withdrawal update:update_withdrawal(cycle);
 
 	aspect default {
-		draw circle(size) color: color border: #black;
+		draw circle(size) color:color border: #black;
 	}
 	
 	action update_withdrawal (int cycle){
-		list<float> p_list <- column_at(prob_matrix,twoweeks_count);
-		int interval_index <- rnd_choice(p_list);
-		float a <- limits_withdrawal[0,interval_index];
-		float b <- limits_withdrawal[1,interval_index];
-		return rnd(a,b);
-	}
-	
-	/*reflex when:cycle >0{
-		string day_of_the_year <- daily_date[cycle]; 
-		save [cycle,day_of_the_year,daily_withdrawal] to: "../results/teste/daily-pump"+name+scenario+".csv"  type:csv rewrite:false header:false;				
-	}*/
+		ask pump_owner {
+			if has_belief(trigger_restriction_rule){
+				myself.daily_withdrawal <- 0.0;
+			}else{
+				list<float> p_list <- column_at(myself.prob_matrix,twoweeks_count);
+				int interval_index <- rnd_choice(p_list);
+				float a <- limits_withdrawal[0,interval_index];
+				float b <- limits_withdrawal[1,interval_index];
+				return rnd(a,b);
+			}
+		}
+	}	
 }
 
-species Farmer {
+species Farmer control: simple_bdi {
 	Farmer farmer;
 	int farmer_id;
 	string profile;
 	string demand_group;
 	list<Pump> owned_pumps; // list of owned pumps 
+	list<Farmer> my_group;
 	int nb_pumps;
 	float irrigation_area; //potential irrigation area [ha]
 	float f_daily_withdrawal update: update_f_withdrawal();
+	string neighb_effect;
 	rgb color <- #grey;
+	float n_NC;
+	float n_CP;
 	
-	aspect default {
-		draw circle(150) color: color border: #black;
+	reflex neighbors_beliefs {
+		if n_NC > n_CP {
+			do add_belief(new_predicate('Most are NC in my group'));
+		}else if n_CP > n_NC {
+			do add_belief(new_predicate('Most are CP in my group'));
+		}else{
+			do add_belief(new_predicate('No neighbourhood effect'));
+		}
 	}
+	
+	predicate trigger_attention_rule <- new_predicate("Attention rule must be obeyed");
+	predicate trigger_restriction_rule <- new_predicate("Restriction rule must be obeyed");
+	predicate obey_restriction_rule <- new_predicate("I am obeying the restriction rule");
+	
+	/*aspect default {
+		draw circle(150) color: color border: #black;
+	}*/
 
 	action update_f_withdrawal {
 		return sum(collect(owned_pumps,each.daily_withdrawal));
 	}
-
-	reflex assign_rules_reactions {
-		bool aux_data_08 <- (current_date >= date("2020-08-01"));
-		bool aux_data_07 <- (current_date >= date("2020-07-01"));
+	
+	reflex assign_beliefs {
+		if(profile = "CP"){
+			if((aux_date_08) or (aux_level_red)){
+				do add_belief(trigger_restriction_rule);
+			}
+		}else if (profile = 'CI'){
+			if((aux_date_08) and (aux_level_red)){
+				do add_belief(trigger_restriction_rule);
+			}
+		}
+	}
+	
+	rule belief: trigger_restriction_rule new_desire: obey_restriction_rule;
+	// como associar com as bombas?
+	
+	plan lets_obey_restriction intention:obey_restriction_rule when: trigger_restriction_rule = true {
+		do adjust_withdrawal();	
+	}
+		
+	action adjust_withdrawal{
+		f_daily_withdrawal <- 0;
+		loop pump over:owned_pumps{
+			pump.daily_withdrawal <- 0;
+		}
+	}
+	
+	//Neighbourhood effect
+		
+	reflex assign_intentions{
+		
+	}
+	
+	reflex assign_colours{
 		bool is_respecting_red_rules <- false;
 		bool is_respecting_yellow_rules <- false;
 		
-		if ((aux_data_08))= true {
-			if f_daily_withdrawal = 0.0 {
+		if ((aux_date_08) or (aux_level_red)) {
+			if f_daily_withdrawal = 0 {
 				is_respecting_red_rules <- true;
+			}
+		} else if ((aux_date_07) or (aux_level_yellow)) {
+			if f_daily_withdrawal < 1000 {
+				is_respecting_yellow_rules <- true;
 			}
 		}
 		
-		if(!is_respecting_red_rules){
+		if (!(aux_date_08) and !(aux_level_red)){
+			is_respecting_red_rules <- true;
+		}
+
+		if (!(aux_date_07) and !(aux_level_yellow)){
+			is_respecting_yellow_rules <- true;
+		}
+		
+		if (!is_respecting_red_rules or !is_respecting_yellow_rules){
 			loop pump over: owned_pumps {
 				pump.color <- #red;
 				pump.size <- 200;
@@ -254,6 +381,30 @@ species Farmer {
 			}
 		}
 	}
+}
+
+species Regulator control:simple_bdi{
+	date fiscalization_date1 <- attention_date;
+	date fiscalization_date2 <- restriction_date;
+	predicate restriction_rule <- new_predicate('restriction_rule');
+	predicate attention_rule <- new_predicate('attention_rule');
+	
+	plan regulate intention: regulate { // colocar prioridade 1
+		if(current_date >= restriction_date or (current_level <= red_level)) { 
+			do add_belief(restriction_rule);
+		}else if(current_date >= attention_date or (current_level <= yellow_level)) {
+			do add_belief(attention_rule);
+		}	
+	}
+		
+	plan fiscalize intention:fiscalize when: current_date >=fiscalization_date1 priority:1{ //chamado antes de reduzir, suspender, antes de penalidades
+		list<Farmer> disob_farmers <- [];
+		loop farmer over:Farmer{
+			if farmer.f_daily_withdrawal > 0.0 {
+				add farmer to: disob_farmers;
+			}	
+		}
+	}	
 }
 
 // Auxiliar species for GUI experiments
@@ -332,7 +483,7 @@ experiment teste_gui type: gui {
 	}
 }
 
-experiment repetitions type: batch repeat: 1000 autorun: true keep_seed:true until: cycle = nb_days+2 { 	
+experiment repetitions type: batch repeat: 1 autorun: false keep_seed:true until: cycle = nb_days+2 { 	
 	reflex end_of_runs {
 		int sim <- 0;
 		ask simulations { // no fim da simulação, para cada simulação
