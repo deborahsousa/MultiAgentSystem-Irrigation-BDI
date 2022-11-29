@@ -57,10 +57,10 @@ global {
 	//list<float> withdrawal_pumps_NC update: (Pump where (each.behavior_g = "NC")) collect (each.daily_withdrawal);
 	
 	//Scenarios
-	//string scenario <- "S0"; //baseline
+	string scenario <- "S0"; //baseline
 	//string scenario <- "S1" ;//all CP
 	//string scenario <- "S2"; //all NC	
-	string scenario <- "S3"; //all CI	
+	//string scenario <- "S3"; //all CI	
 		
 	//initial state
 	init {
@@ -163,8 +163,8 @@ global {
 	}/******END INIT*****/		
 			
 	reflex save_daily_data when: cycle > 1 {		
-		string day_of_the_year <- daily_date[cycle-1];
-		save [cycle,int(self),day_of_the_year,all_pumps_daily_withdrawal] to: "../results/cenarios/daily_withdrawal"+scenario+".csv"  type:csv rewrite:false header:false;				 
+		//string day_of_the_year <- daily_date[cycle-1];
+		//save [cycle,int(self),day_of_the_year,all_pumps_daily_withdrawal] to: "../results/cenarios/daily_withdrawal"+scenario+".csv"  type:csv rewrite:false header:false;				 
 		//write 'ciclo '+cycle+' '+day_of_the_year+' '+' '+all_pumps_daily_withdrawal;
 		//list<float> all_pumps_daily_withdrawal <- Pump collect (each.daily_withdrawal);	
 		//save [cycle,int(self),day_of_the_year,all_pumps_daily_withdrawal]to: "../results/exemplo1.csv"  type:csv rewrite:false header:false;				
@@ -172,9 +172,9 @@ global {
 		//save [cycle,int(self),day_of_the_year,all_pumps_daily_withdrawal]to: "../results/daily_withdrawal-pumps-1000-keepseed"+scenario+"-init0.csv"  type:csv rewrite:false;
 	}
 	
-	/*reflex end_simulation when:cycle=nb_days+1{
+	reflex end_simulation when:cycle=nb_days+2{
 		do pause;
-	}*/
+	}
 }/******END GLOBAL*****/
 
 species Pump {
