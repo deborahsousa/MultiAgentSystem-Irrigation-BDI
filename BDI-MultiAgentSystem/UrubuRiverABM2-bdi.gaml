@@ -2,6 +2,7 @@
 * Name: FRBModel 
 * Authors: Déborah S. Sousa, Cássio G. C. Coelho, Conceição de M. A. Alves, Célia G. Ralha.
 * Tags: irrigation; water regulation
+* The 'cycle > 1' conditions ensure that the simulation starts in the correct day (1st May)
 */
 model UrubuRiverModel
 
@@ -28,53 +29,44 @@ global {
 	date attention_date <- date("2020-07-01");
 	date restriction_date <- date("2020-08-01");
 	int col_level;
-	float current_level <- 500 update:update_my_level(); // fictional //level variation at the reference gauging station [m] //might be given as an input of a hydrological model output
+	float current_level <- 500 update:level_series[col_level,cycle];//level variation at the reference gauging station [cm] //might be given as an input of a hydrological model output
 	bool aux_level_red update:(current_level <= red_level);
 	bool aux_level_yellow update:(current_level <= yellow_level);
-	bool aux_date_08 update:(my_day >= restriction_date);
-	bool aux_date_07 update:(my_day >= attention_date);
+	bool aux_date_08 update:(current_date >= restriction_date);
+	bool aux_date_07 update:(current_date >= attention_date);
 	date my_day <- starting_date update: update_my_date();
 		
 	//counters and time steps (dry season)
-	date starting_date <- date("2020-04-30");
+	date starting_date <- date("2020-05-01");
 	float step <- 1 #day;
 	int nb_days <- 123; //day count from the first to the last day of one dry season simulation
 	string crop_season <- "soybean" among: ["soybean","rice"];
-	int twoweeks_count update:update_twoweeks_count(cycle);	
+	int twoweeks_count update:update_twoweeks_count();	
 	int day_in_twoweeks  update: update_day_in_twoweeks();
 
-	action update_my_level type: float {
-		if cycle>1 {
-			float my_level <- level_series[col_level,cycle-1]; 
-			return my_level;
-		} else {
-			return 500;
-		} 
-	}
-
-	action update_my_date type: date {
-		if cycle>1 {
-			date my_new_date <- daily_date[cycle-1]; 
+	action update_my_date type: date { //adjusts the date to save it correctly in the output file
+		if cycle > 0 {
+			date my_new_date <- daily_date[cycle]; 
 			return my_new_date;
 		} else {
 			return starting_date;
 		} 
 	}
-	
+
 	action update_day_in_twoweeks type: int {
-		if mod(cycle-1,15) != 0 or (cycle-1) >= 120 {
+		if mod(cycle,15) != 0 or (cycle) >= 120 {
 			return day_in_twoweeks + 1;
 		} else {
 			return 0;
 		} 
 	}
 	
-	action update_twoweeks_count (int cycle) type: int {
+	action update_twoweeks_count type: int {
 		if cycle = 0{
 			return 0;
-		}else if ((cycle-1) < 120) {
-			return floor((cycle-1)/15);
-		}else if ((cycle-1) >= 120) {
+		}else if ((cycle) < 120) {
+			return floor((cycle)/15);
+		}else if ((cycle) >= 120) {
 			return 7;
 		}
 	}
@@ -385,9 +377,8 @@ initial state****************/
 							
 	}/******END INIT*****/		
 			
-	reflex save_daily_data when: cycle > 1 {		
-		save [cycle,int(self),my_day,all_pumps_daily_withdrawal] to: "../results/cenariosbdi/daily_withdrawal"+scenario+".csv"  type:csv rewrite:false header:false;				 
-		
+	reflex save_daily_data when: cycle > 0{	
+		//save [cycle,int(self),my_day,all_pumps_daily_withdrawal] to: "../results/cenariosbdi-ajustequinzena2/daily_withdrawal"+scenario+".csv"  type:csv rewrite:false header:false;				 
 		//string day_of_the_year <- daily_date[cycle-1];
 		//write 'ciclo '+cycle+' '+day_of_the_year+' '+' '+all_pumps_daily_withdrawal;
 		//list<float> all_pumps_daily_withdrawal <- Pump collect (each.daily_withdrawal);	
@@ -396,7 +387,7 @@ initial state****************/
 		//save [cycle,int(self),day_of_the_year,all_pumps_daily_withdrawal]to: "../results/daily_withdrawal-pumps-1000-keepseed"+scenario+"-init0.csv"  type:csv rewrite:false;
 	}
 	
-	reflex end_simulation when:cycle=nb_days+2{
+	reflex end_simulation when:cycle=nb_days+1{
 		do pause;
 	}
 }/******END GLOBAL*****/
@@ -449,7 +440,6 @@ species Farmer control: simple_bdi {
 	int nb_pumps;
 	float irrigation_area; //potential irrigation area [ha]
 	float f_daily_withdrawal update: update_f_withdrawal();
-	string neighb_effect;
 	rgb color <- #grey;
 	float n_NC;
 	float n_CP;
@@ -660,7 +650,7 @@ experiment teste_gui type: gui {
 	}
 }
 
-experiment repetitions type: batch repeat: 1000 autorun: true keep_seed:true until: cycle = nb_days+2 { 	
+experiment repetitions type: batch repeat: 1000 autorun: true keep_seed:true until: cycle = nb_days+1 { 	
 	reflex end_of_runs {
 		int sim <- 0;
 		ask simulations { // no fim da simulação, para cada simulação
